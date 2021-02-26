@@ -11,7 +11,7 @@ from torch.utils.data import Dataset
 import torch.nn as nn
 import torchvision.transforms as transforms
 import torchvision.models as models
-
+import torch
 
 class ProtestDataset(Dataset):
     """
@@ -34,9 +34,9 @@ class ProtestDataset(Dataset):
                                 self.label_frame.iloc[idx, 0])
         image = pil_loader(imgpath)
 
-        protest = self.label_frame.iloc[idx, 1:2].as_matrix().astype('float')
-        violence = self.label_frame.iloc[idx, 2:3].as_matrix().astype('float')
-        visattr = self.label_frame.iloc[idx, 3:].as_matrix().astype('float')
+        protest = self.label_frame.iloc[idx, 1:2].to_numpy().astype('float')
+        violence = self.label_frame.iloc[idx, 2:3].to_numpy().astype('float')
+        visattr = self.label_frame.iloc[idx, 3:].to_numpy().astype('float')
         label = {'protest':protest, 'violence':violence, 'visattr':visattr}
 
         sample = {"image":image, "label":label}
@@ -107,6 +107,47 @@ def modified_resnet50():
 
 
     return model
+
+
+
+
+def vis_model():
+    model = models.resnet50(pretrained=True)
+    return model
+
+def det_model():
+    return 1
+
+def detrec_model():
+    return 1
+
+
+class JointVisDet(nn.Module):
+    def __init__(self, idim=1003, odim=12):
+        self.vis_model = vis_model()
+        self.det_model = det_model()
+        self.head = torch.nn.Linear(idim, odim)
+    def forward(self, img):
+        vis_out = self.vis_model(img)
+        det_out = self.det_model(img)
+        jot_out = torch.cat((vis_out, det_out), 1)
+        out = self.head(jot_out)
+        return out
+
+
+class JointVisDetFineGrained(nn.Module):
+    def __init__(self, idim=1512, odim=5):
+        self.vis_model = vis_model()
+        self.detrec_model = detrec_model()
+        self.head = torch.nn.Linear(idim, odim)
+
+    def forward(self, img):
+        vis_out = self.vis_model(img)
+        detrec_out = self.detrec_model(img)
+        jot_out = torch.cat((vis_out, detrec_out), 1)
+        out = self.head(jot_out)
+        return out
+
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""

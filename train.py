@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 import time
 import shutil
-from itertools import ifilter
+#from itertools import ifilter
 from PIL import Image
 from sklearn.metrics import accuracy_score, mean_squared_error
 
@@ -49,13 +49,16 @@ def calculate_loss(output, target, criterions, weights = [1, 10, 5]):
         targets[0] = target['protest'].float()
         losses = [weights[i] * criterions[i](outputs[i], targets[i]) for i in range(1)]
         scores = {}
-        scores['protest_acc'] = accuracy_score((outputs[0]).data.round(), targets[0].data)
+
+        scores['protest_acc'] = accuracy_score(outputs[0].data.round().cpu(), targets[0].data.cpu())
         scores['violence_mse'] = 0
         scores['visattr_acc'] = 0
         return losses, scores, N_protest
 
     # used for filling 0 for non-protest images
     not_protest_mask = (1 - target['protest']).byte()
+    not_protest_mask = not_protest_mask > 0
+
 
     outputs = [None] * 4
     # protest output
@@ -76,9 +79,10 @@ def calculate_loss(output, target, criterions, weights = [1, 10, 5]):
 
     scores = {}
     # protest accuracy for this batch
-    scores['protest_acc'] = accuracy_score(outputs[0].data.round(), targets[0].data)
+
+    scores['protest_acc'] = accuracy_score(outputs[0].data.round().cpu(), targets[0].data.cpu())
     # violence MSE for this batch
-    scores['violence_mse'] = ((outputs[1].data - targets[1].data).pow(2)).sum() / float(N_protest)
+    scores['violence_mse'] = ((outputs[1].data.cpu() - targets[1].data.cpu()).pow(2)).sum() / float(N_protest)
     # mean accuracy for visual attribute for this batch
     comparison = (outputs[2].data.round() == targets[2].data)
     comparison.masked_fill_(not_protest_mask.repeat(1, 10).data,0)
@@ -134,13 +138,17 @@ def train(train_loader, model, criterions, optimizer, epoch):
         loss.backward()
         optimizer.step()
 
+        # Evaluate
+        protest_loss = losses[0].cpu().detach().numpy()
+        all_loss = loss.cpu().detach().numpy()
+
         if N_protest:
-            loss_protest.update(losses[0].data[0], input.size(0))
-            loss_v.update(loss.data[0] - losses[0].data[0], N_protest)
+            loss_protest.update(protest_loss, input.shape[0])
+            loss_v.update(all_loss - protest_loss, N_protest)
         else:
             # when there is no protest image in the batch
-            loss_protest.update(losses[0].data[0], input.size(0))
-        loss_history.append(loss.data[0])
+            loss_protest.update(protest_loss, input.shape[0])
+        loss_history.append(protest_loss)
         protest_acc.update(scores['protest_acc'], input.size(0))
         violence_mse.update(scores['violence_mse'], N_protest)
         visattr_acc.update(scores['visattr_acc'], N_protest)
@@ -200,13 +208,17 @@ def validate(val_loader, model, criterions, epoch):
         for l in losses:
             loss += l
 
+        protest_loss = losses[0].cpu().detach().numpy()
+        all_loss = loss.cpu().detach().numpy()
+
         if N_protest:
-            loss_protest.update(losses[0].data[0], input.size(0))
-            loss_v.update(loss.data[0] - losses[0].data[0], N_protest)
+            loss_protest.update(protest_loss, input.shape[0])
+            loss_v.update(all_loss - protest_loss, N_protest)
         else:
-            # when no protest images
-            loss_protest.update(losses[0].data[0], input.size(0))
-        loss_history.append(loss.data[0])
+            # when there is no protest image in the batch
+            loss_protest.update(protest_loss, input.shape[0])
+
+        loss_history.append(protest_loss)
         protest_acc.update(scores['protest_acc'], input.size(0))
         violence_mse.update(scores['violence_mse'], N_protest)
         visattr_acc.update(scores['visattr_acc'], N_protest)
@@ -274,7 +286,7 @@ def main():
         model = model.cuda()
         criterions = [criterion.cuda() for criterion in criterions]
     # we are not training the frozen layers
-    parameters = ifilter(lambda p: p.requires_grad, model.parameters())
+    parameters = filter(lambda p: p.requires_grad, model.parameters())
 
     optimizer = torch.optim.SGD(
                         parameters, args.lr,
@@ -347,6 +359,7 @@ def main():
 
     for epoch in range(args.start_epoch, args.epochs):
         adjust_learning_rate(optimizer, epoch)
+
         loss_history_train_this = train(train_loader, model, criterions,
                                         optimizer, epoch)
         loss_val, loss_history_val_this = validate(val_loader, model,
