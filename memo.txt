@@ -1,0 +1,106 @@
+Vis
+([8, 1000])
+
+Det
+(2, 8, 112, 112, 2)
+
+torch.Size([8, 3, 224, 224])
+
+
+test.py inference
+339 640 3
+
+train
+([8, 3, 224, 224])
+
+text_box = 9 * 8
+
+horizontal_list = 7 * 4
+free_list = 0
+
+
+
+CRAFT+CRNN result:
+
+[([[86, 80], [134, 80], [134, 128], [86, 128]], '西', 0.9994744753045701),
+([[189, 75], [469, 75], [469, 165], [189, 165]], '愚园路', 0.6019413471221924),
+([[517, 81], [565, 81], [565, 123], [517, 123]], '东', 0.9993466014419852),
+([[78, 126], [136, 126], [136, 156], [78, 156]], '315', 0.8923825320595129),
+([[514, 126], [574, 126], [574, 156], [514, 156]], '309', 0.9998034369163669),
+([[79, 173], [125, 173], [125, 213], [79, 213]], 'W', 0.9750516240051752),
+([[226, 170], [414, 170], [414, 220], [226, 220]], 'Yuyuan Rd.', 0.9588414349638366),
+([[529, 173], [569, 173], [569, 213], [529, 213]], 'E', 0.7511588570446861)]
+
+
+
+=> extract tf-idf
+[([[86, 80], [134, 80], [134, 128], [86, 128]], [0.34, 0.4, ....], 0.9994744753045701),
+([[189, 75], [469, 75], [469, 165], [189, 165]], [0.34, 0.4, ....], 0.6019413471221924),
+([[517, 81], [565, 81], [565, 123], [517, 123]], [0.34, 0.4, ....], 0.9993466014419852),
+([[78, 126], [136, 126], [136, 156], [78, 156]], [0.34, 0.4, ....], 0.8923825320595129),
+([[514, 126], [574, 126], [574, 156], [514, 156]], [0.34, 0.4, ....], 0.9998034369163669),
+([[79, 173], [125, 173], [125, 213], [79, 213]], [0.34, 0.4, ....], 0.9750516240051752),
+([[226, 170], [414, 170], [414, 220], [226, 220]], [0.34, 0.4, ....], 0.9588414349638366),
+([[529, 173], [569, 173], [569, 213], [529, 213]], [0.34, 0.4, ....], 0.7511588570446861)]
+
+
+
+bing/black+protest/Scrapper_19.jpg didn't work
+bing/black+protest/Scrapper_38.jpg didn't work
+bing/black+protest/Scrapper_96.jpg didn't work
+bing/black+protest/Scrapper_48.jpg didn't work
+bing/black+protest/Scrapper_42.jpg didn't work
+bing/black+protest/Scrapper_91.jpg didn't work
+bing/black+protest/Scrapper_26.jpg didn't work
+bing/black+protest/Scrapper_98.jpg didn't work
+bing/black+protest/Scrapper_84.jpg didn't work
+bing/black+protest/Scrapper_43.jpg didn't work
+bing/black+protest/Scrapper_93.jpg didn't work
+bing/black+protest/Scrapper_56.jpg didn't work
+bing/black+protest/Scrapper_62.jpg didn't work
+bing/black+protest/Scrapper_82.jpg didn't work
+bing/black+protest/Scrapper_21.jpg didn't work
+bing/black+protest/Scrapper_46.jpg didn't work
+bing/black+protest/Scrapper_78.jpg didn't work
+bing/black+protest/Scrapper_65.jpg didn't work
+bing/black+protest/Scrapper_32.jpg didn't work
+bing/black+protest/Scrapper_52.jpg didn't work
+bing/black+protest/Scrapper_77.jpg didn't work
+bing/black+protest/Scrapper_15.jpg didn't work
+bing/black+protest/Scrapper_88.jpg didn't work
+bing/black+protest/Scrapper_8.jpg didn't work
+bing/black+protest/Scrapper_90.jpg didn't work
+bing/black+protest/Scrapper_22.jpg didn't work
+bing/black+protest/Scrapper_61.jpg didn't work
+bing/black+protest/Scrapper_7.jpg didn't work
+bing/black+protest/Scrapper_28.jpg didn't work
+bing/black+protest/Scrapper_30.jpg didn't work
+bing/black+protest/Scrapper_13.jpg didn't work
+bing/black+protest/Scrapper_95.jpg didn't work
+bing/black+protest/Scrapper_99.jpg didn't work
+bing/black+protest/Scrapper_54.jpg didn't work
+bing/black+protest/Scrapper_27.jpg didn't work
+bing/black+protest/Scrapper_20.jpg didn't work
+bing/black+protest/Scrapper_23.jpg didn't work
+bing/black+protest/Scrapper_67.jpg didn't work
+bing/black+protest/Scrapper_5.jpg didn't work
+bing/black+protest/Scrapper_31.jpg didn't work
+bing/black+protest/Scrapper_12.jpg didn't work
+bing/black+protest/Scrapper_64.jpg didn't work
+bing/black+protest/Scrapper_80.jpg didn't work
+bing/black+protest/Scrapper_14.jpg didn't work
+bing/black+protest/Scrapper_76.jpg didn't work
+bing/black+protest/Scrapper_87.jpg didn't work
+bing/black+protest/Scrapper_11.jpg didn't work
+bing/black+protest/Scrapper_40.jpg didn't work
+bing/black+protest/Scrapper_60.jpg didn't work
+bing/black+protest/Scrapper_44.jpg didn't work
+bing/black+protest/Scrapper_72.jpg didn't work
+bing/black+protest/Scrapper_57.jpg didn't work
+bing/black+protest/Scrapper_97.jpg didn't work
+bing/black+protest/Scrapper_25.jpg didn't work
+bing/black+protest/Scrapper_55.jpg didn't work
+bing/black+protest/Scrapper_24.jpg didn't work
+bing/black+protest/Scrapper_47.jpg didn't work
+bing/black+protest/Scrapper_73.jpg didn't work
+

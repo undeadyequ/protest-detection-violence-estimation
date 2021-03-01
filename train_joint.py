@@ -24,7 +24,8 @@ from torch.autograd import Variable
 import torchvision.transforms as transforms
 import torchvision.models as models
 
-from util import ProtestDataset, modified_resnet50, AverageMeter, Lighting, JointVisDet
+from util import ProtestDataset, AverageMeter, Lighting
+from easyocr.joint_model import JointVisDet, modified_resnet50
 
 
 # for indexing output of the model
@@ -121,19 +122,21 @@ def train(train_loader, model, criterions, optimizer, epoch):
     loss_history = []
     for i, sample in enumerate(train_loader):
         # measure data loading batch_time
-        input, target = sample['image'], sample['label']
+        input, target, bfts = sample['image'], sample['label'], sample['bbox_feats']
         data_time.update(time.time() - end)
 
         if args.cuda:
             input = input.cuda()
             for k, v in target.items():
                 target[k] = v.cuda()
+            bfts = bfts.cuda()
+
         target_var = {}
         for k,v in target.items():
             target_var[k] = Variable(v)
 
-        input_var = Variable(input)
-        output = model(input_var)
+        input_var = Variable(input)  # torch.Size([8, 3, 224, 224])
+        output = model(input_var, bfts)
 
         losses, scores, N_protest = calculate_loss(output, target_var, criterions)
 
@@ -279,9 +282,9 @@ def main():
     txt_file_val = os.path.join(data_dir, "annot_test.txt")
 
     # load pretrained resnet50 with a modified last fully connected layer
-    # model = modified_resnet50()
+    model = modified_resnet50()
 
-    model = JointVisDet(idim=1000, odim=2)
+    #model = JointVisDet(idim=1000, odim=2)
 
     # we need three different criterion for training
     criterion_protest = nn.BCELoss()
