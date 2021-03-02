@@ -24,7 +24,8 @@ from torch.autograd import Variable
 import torchvision.transforms as transforms
 import torchvision.models as models
 
-from util import ProtestDataset, modified_resnet50, AverageMeter, Lighting
+from util import ProtestDataset, AverageMeter, Lighting
+from easyocr.joint_model import modified_resnet50
 
 
 # for indexing output of the model

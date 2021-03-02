@@ -24,7 +24,7 @@ from torch.autograd import Variable
 import torchvision.transforms as transforms
 import torchvision.models as models
 
-from util import ProtestDataset, AverageMeter, Lighting
+from util import ProtestDataset, AverageMeter, Lighting, ProtestDatasetEval_fts, ProtestDataset_fts
 from easyocr.joint_model import JointVisDet, modified_resnet50
 
 
@@ -37,7 +37,7 @@ best_loss = float("inf")
 
 
 
-def calculate_loss(output, target, criterions, weights = [1, 10, 5]):
+def calculate_loss(output, target, criterions, weights = [1, 5]):
     """Calculate loss"""
 
 
@@ -57,48 +57,34 @@ def calculate_loss(output, target, criterions, weights = [1, 10, 5]):
         scores = {}
 
         scores['protest_acc'] = accuracy_score(outputs[0].data.round().cpu(), targets[0].data.cpu())
-        scores['violence_mse'] = 0
-        scores['visattr_acc'] = 0
+        scores['sign_acc'] = 0
         return losses, scores, N_protest
 
     # mask 0 for non-protest images
 
 
-    not_protest_mask = (1 - target['protest']).byte()
+    not_protest_mask = (1 - target['protest']).byte()               # Only predict attribute from gd protest image
     not_protest_mask = not_protest_mask > 0
 
 
-    outputs = [None] * 4
+    outputs = [None] * 3
     # protest output
     outputs[0] = output.index_select(1, protest_idx)
     # violence output
-    outputs[1] = output.index_select(1, violence_idx)
+    outputs[1] = output.index_select(1, sign_idx)
     outputs[1].masked_fill_(not_protest_mask, 0)
-    # visual attribute output
-    outputs[2] = output.index_select(1, visattr_idx)
-    outputs[2].masked_fill_(not_protest_mask.repeat(1, 10),0)
 
 
-    targets = [None] * 4
+    targets = [None] * 3
 
     targets[0] = target['protest'].float()
-    targets[1] = target['violence'].float()
-    targets[2] = target['visattr'].float()
+    targets[1] = target['sign'].float()
 
     scores = {}
     # protest accuracy for this batch
 
     scores['protest_acc'] = accuracy_score(outputs[0].data.round().cpu(), targets[0].data.cpu())
-    # violence MSE for this batch
-    scores['violence_mse'] = ((outputs[1].data.cpu() - targets[1].data.cpu()).pow(2)).sum() / float(N_protest)
-    # mean accuracy for visual attribute for this batch
-    comparison = (outputs[2].data.round() == targets[2].data)
-    comparison.masked_fill_(not_protest_mask.repeat(1, 10).data,0)
-    n_right = comparison.float().sum()
-    mean_acc = n_right / float(N_protest*10)
-    scores['visattr_acc'] = mean_acc
-
-    # return weighted loss
+    scores['sign_acc'] = accuracy_score(outputs[1].data.round().cpu(), targets[1].data.cpu())
     losses = [weights[i] * criterions[i](outputs[i], targets[i]) for i in range(len(criterions))]
 
     return losses, scores, N_protest
@@ -115,8 +101,7 @@ def train(train_loader, model, criterions, optimizer, epoch):
     loss_protest = AverageMeter()
     loss_v = AverageMeter()
     protest_acc = AverageMeter()
-    violence_mse = AverageMeter()
-    visattr_acc = AverageMeter()
+    sign_acc = AverageMeter()
 
     end = time.time()
     loss_history = []
@@ -160,8 +145,7 @@ def train(train_loader, model, criterions, optimizer, epoch):
             loss_protest.update(protest_loss, input.shape[0])
         loss_history.append(protest_loss)
         protest_acc.update(scores['protest_acc'], input.size(0))
-        violence_mse.update(scores['violence_mse'], N_protest)
-        visattr_acc.update(scores['visattr_acc'], N_protest)
+        sign_acc.update(scores['sign_acc'], N_protest)
 
         batch_time.update(time.time() - end)
         end = time.time()
@@ -172,17 +156,16 @@ def train(train_loader, model, criterions, optimizer, epoch):
                   'Data {data_time.val:.2f} ({data_time.avg:.2f})  '
                   'Loss {loss_val:.3f} ({loss_avg:.3f})  '
                   'Protest {protest_acc.val:.3f} ({protest_acc.avg:.3f})  '
-                  'Violence {violence_mse.val:.5f} ({violence_mse.avg:.5f})  '
-                  'Vis Attr {visattr_acc.val:.3f} ({visattr_acc.avg:.3f})'
+                  'Sign {sign_acc.val:.5f} ({sign_acc.avg:.5f})  '
                   .format(
                    epoch, i, len(train_loader), batch_time=batch_time,
                    data_time=data_time,
                    loss_val=loss_protest.val + loss_v.val,
                    loss_avg = loss_protest.avg + loss_v.avg,
-                   protest_acc = protest_acc, violence_mse = violence_mse,
-                   visattr_acc = visattr_acc))
+                   protest_acc = protest_acc, sign_acc = sign_acc))
 
     return loss_history
+
 
 def validate(val_loader, model, criterions, epoch):
     """Validating"""
@@ -192,26 +175,26 @@ def validate(val_loader, model, criterions, epoch):
     loss_protest = AverageMeter()
     loss_v = AverageMeter()
     protest_acc = AverageMeter()
-    violence_mse = AverageMeter()
-    visattr_acc = AverageMeter()
+    sign_acc = AverageMeter()
 
     end = time.time()
     loss_history = []
     for i, sample in enumerate(val_loader):
         # measure data loading batch_time
-        input, target = sample['image'], sample['label']
+        input, target, bfts = sample['image'], sample['label'], sample['bbox_feats']
 
         if args.cuda:
             input = input.cuda()
             for k, v in target.items():
                 target[k] = v.cuda()
+            bfts = bfts.cuda()
         input_var = Variable(input)
 
         target_var = {}
         for k,v in target.items():
             target_var[k] = Variable(v)
 
-        output = model(input_var)
+        output = model(input_var, bfts)
 
         losses, scores, N_protest = calculate_loss(output, target_var, criterions)
         loss = 0
@@ -230,8 +213,7 @@ def validate(val_loader, model, criterions, epoch):
 
         loss_history.append(protest_loss)
         protest_acc.update(scores['protest_acc'], input.size(0))
-        violence_mse.update(scores['violence_mse'], N_protest)
-        visattr_acc.update(scores['visattr_acc'], N_protest)
+        sign_acc.update(scores['sign_acc'], N_protest)
 
         batch_time.update(time.time() - end)
         end = time.time()
@@ -241,28 +223,28 @@ def validate(val_loader, model, criterions, epoch):
                   'Time {batch_time.val:.2f} ({batch_time.avg:.2f})  '
                   'Loss {loss_val:.3f} ({loss_avg:.3f})  '
                   'Protest Acc {protest_acc.val:.3f} ({protest_acc.avg:.3f})  '
-                  'Violence MSE {violence_mse.val:.5f} ({violence_mse.avg:.5f})  '
-                  'Vis Attr Acc {visattr_acc.val:.3f} ({visattr_acc.avg:.3f})'
+                  'Sign Acc {sign_acc.val:.5f} ({sign_acc.avg:.5f})  '
                   .format(
                    epoch, i, len(val_loader), batch_time=batch_time,
                    loss_val =loss_protest.val + loss_v.val,
                    loss_avg = loss_protest.avg + loss_v.avg,
                    protest_acc = protest_acc,
-                   violence_mse = violence_mse, visattr_acc = visattr_acc))
+                   sign_acc = sign_acc))
 
     print(' * Loss {loss_avg:.3f} Protest Acc {protest_acc.avg:.3f} '
-          'Violence MSE {violence_mse.avg:.5f} '
-          'Vis Attr Acc {visattr_acc.avg:.3f} '
+          'Sign Acc {sign_acc.avg:.5f} '
           .format(loss_avg = loss_protest.avg + loss_v.avg,
                   protest_acc = protest_acc,
-                  violence_mse = violence_mse, visattr_acc = visattr_acc))
+                  sign_acc = sign_acc))
     return loss_protest.avg + loss_v.avg, loss_history
+
 
 def adjust_learning_rate(optimizer, epoch):
     """Sets the learning rate to the initial LR decayed by 0.5 every 5 epochs"""
     lr = args.lr * (0.4 ** (epoch // 4))
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
+
 
 def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
     """Save checkpoints"""
@@ -280,11 +262,13 @@ def main():
     img_dir_val = os.path.join(data_dir, "img/test")
     txt_file_train = os.path.join(data_dir, "annot_train.txt")
     txt_file_val = os.path.join(data_dir, "annot_test.txt")
+    txt_fts_file_train = os.path.join(data_dir, "annot_bfts_train.txt")
+    txt_fts_file_val = os.path.join(data_dir, "annot_bfts_test.txt")
 
     # load pretrained resnet50 with a modified last fully connected layer
-    model = modified_resnet50()
+    #model = modified_resnet50()
 
-    #model = JointVisDet(idim=1000, odim=2)
+    model = JointVisDet(idim=13, odim=2)
 
     # we need three different criterion for training
     criterion_protest = nn.BCELoss()
@@ -332,8 +316,9 @@ def main():
                            [-0.5808, -0.0045, -0.8140],
                            [-0.5836, -0.6948,  0.4203]])
 
-    train_dataset = ProtestDataset(
+    train_dataset = ProtestDataset_fts(
                         txt_file = txt_file_train,
+                        bfts_file = txt_fts_file_train,
                         img_dir = img_dir_train,
                         transform = transforms.Compose([
                                 transforms.RandomResizedCrop(224),
@@ -348,8 +333,9 @@ def main():
                                 Lighting(0.1, eigval, eigvec),
                                 normalize,
                         ]))
-    val_dataset = ProtestDataset(
+    val_dataset = ProtestDataset_fts(
                     txt_file = txt_file_val,
+                    bfts_file=txt_fts_file_val,
                     img_dir = img_dir_val,
                     transform = transforms.Compose([
                         transforms.Resize(256),
@@ -454,8 +440,6 @@ if __name__ == "__main__":
 
     if args.cuda:
         protest_idx = protest_idx.cuda()
-        violence_idx = violence_idx.cuda()
-        visattr_idx = visattr_idx.cuda()
-
-
+        sign_idx = sign_idx.cuda()
+        finegrained_idx = finegrained_idx.cuda()
     main()

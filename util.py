@@ -36,11 +36,12 @@ class ProtestDataset_fts(Dataset):
         image = pil_loader(imgpath)
 
         protest = self.label_frame.iloc[idx, 1:2].to_numpy().astype('float')
-        violence = self.label_frame.iloc[idx, 2:3].to_numpy().astype('float')
-        visattr = self.label_frame.iloc[idx, 3:].to_numpy().astype('float')
-        label = {'protest':protest, 'violence':violence, 'visattr':visattr}
+        sign = self.label_frame.iloc[idx, 3:4].to_numpy().astype('float')
+        #violence = self.label_frame.iloc[idx, 2:3].to_numpy().astype('float')
+        #visattr = self.label_frame.iloc[idx, 3:].to_numpy().astype('float')
+        label = {'protest':protest, 'sign':sign}
 
-        bbox_feats = self.bbox_fts_frame.iloc[idx, 2:].to_numpy().astype('float')
+        bbox_feats = self.bbox_fts_frame.iloc[idx, 1:].to_numpy().astype('float32')
 
         sample = {"image": image, "label": label, "bbox_feats": bbox_feats}
         if self.transform:
