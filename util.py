@@ -12,6 +12,46 @@ import torch.nn as nn
 import torchvision.transforms as transforms
 import torchvision.models as models
 import torch
+from sklearn.feature_extraction.text import TfidfVectorizer, TfidfTransformer
+
+
+class ProtestDataset_txtfts(Dataset):
+    """
+    dataset for training and evaluation
+    """
+    def __init__(self, id_label_trans_train_f, id_label_trans_f, id_path_f, transform = None):
+        """
+        Args:
+            id_label_trans_f: Path to txt file with annotation
+            id_path_f:
+            transform: Optional transform to be applied on a sample.
+        """
+
+        self.id_path_df = pd.read_csv(id_path_f, delimiter=",")
+        self.id_lab_train_trans = pd.read_csv(id_label_trans_train_f, delimiter=",")  # ck
+        self.id_lab_trans = pd.read_csv(id_label_trans_f, delimiter=",")  # ck
+
+        self.transform = transform
+        self.tfidf = TfidfVectorizer(sublinear_tf=True, min_df=2, max_df=30, norm="l2", ngram_range=(1, 2), encoding="utf-8", stop_words="english")
+        trans = self.id_lab_trans["trans"]
+        self.tfidf.fit_transform(trans.values.astype('U')).toarray()
+    def __len__(self):
+        return len(self.id_path_df)
+    def __getitem__(self, idx):
+        imgpath = self.id_path_df.iloc[idx, 1]
+        image = pil_loader(imgpath)
+
+        protest_demand = self.id_lab_train_trans.iloc[idx, 1:2].to_numpy().astype('float32')
+        label = {'protest_demand':protest_demand}
+
+        trans = np.array([self.id_lab_train_trans.iloc[idx, 2]]).astype('U')
+        tfidf_fts = self.tfidf.transform(trans).toarray()[0].astype('float32')
+
+        sample = {"image": image, "label": label, "text_fts": tfidf_fts}
+        if self.transform:
+            sample["image"] = self.transform(sample["image"])
+        return sample
+
 
 class ProtestDataset_fts(Dataset):
     """
@@ -21,6 +61,9 @@ class ProtestDataset_fts(Dataset):
         """
         Args:
             txt_file: Path to txt file with annotation
+                id
+            bfts_file:
+                id bbox_ft1, bbox_ft2, bbox_ft3
             img_dir: Directory with images
             transform: Optional transform to be applied on a sample.
         """
@@ -48,38 +91,6 @@ class ProtestDataset_fts(Dataset):
             sample["image"] = self.transform(sample["image"])
         return sample
 
-
-
-
-class ProtestDatasetEval_fts(Dataset):
-    """
-    dataset for just calculating the output (does not need an annotation file)
-    """
-    def __init__(self, img_dir):
-        """
-        Args:
-            img_dir: Directory with images
-        """
-        self.bbox_fts_frame = pd.read_csv()
-        self.img_dir = img_dir
-        self.transform = transforms.Compose([
-                                transforms.Resize(256),
-                                transforms.CenterCrop(224),
-                                transforms.ToTensor(),
-                                transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                                     std=[0.229, 0.224, 0.225]),
-                                ])
-        self.img_list = sorted(os.listdir(img_dir))
-    def __len__(self):
-        return len(self.img_list)
-    def __getitem__(self, idx):
-        imgpath = os.path.join(self.img_dir,
-                                self.img_list[idx])
-        image = pil_loader(imgpath)
-        # we need this variable to check if the image is protest or not)
-        sample = {"imgpath":imgpath, "image":image}
-        sample["image"] = self.transform(sample["image"])
-        return sample
 
 
 class ProtestDataset(Dataset):

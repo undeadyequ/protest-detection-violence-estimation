@@ -17,7 +17,7 @@ from .recognition import get_recognizer
 from .craft import CRAFT
 from collections import OrderedDict
 import torch.backends.cudnn as cudnn
-
+import torch.nn.functional as F
 
 detector_path = "/home/luoxuan/.EasyOCR/model/craft_mlt_25k.pth"
 recognizer_path = "/home/luoxuan/.EasyOCR//model/chinese_sim.pth"
@@ -35,9 +35,9 @@ def copyStateDict(state_dict):
     return new_state_dict
 
 
-def vis_model():
+def vis_model(fc_out=10):
     model = models.resnet50(pretrained=True)
-    model.fc = HiddeFC(2048, 10)
+    model.fc = HiddeFC(2048, fc_out)
     return model
 
 
@@ -94,7 +94,7 @@ def modified_resnet50():
 
 
 class JointVisDet(nn.Module):
-    def __init__(self, idim=1003, odim=2):
+    def __init__(self, idim=13, odim=2):
         super(JointVisDet, self).__init__()
         self.vis_model = vis_model()
         self.head = torch.nn.Linear(idim, odim)
@@ -110,19 +110,21 @@ class JointVisDet(nn.Module):
         return out
 
 
+
 class JointVisDetREC(nn.Module):
-    def __init__(self, idim=1003, odim=7):
+    def __init__(self, tidim=1029, todim=50, vodim=10, odim=5):
         """
 
         :param idim:
         :param odim: protest + sign + 5 classification
         """
         super(JointVisDetREC, self).__init__()
-        self.vis_model = vis_model()
-        self.head = torch.nn.Linear(idim, odim)
-        self.sigmoid = nn.Sigmoid()
+        self.vis_model = vis_model(fc_out=vodim)
+        self.txt_fc = torch.nn.Linear(tidim, todim)
+        self.head = torch.nn.Linear(todim + vodim, odim)
+        self.softmax = F.softmax
 
-    def forward(self, img, bboxes, rec, conf):
+    def forward(self, img, txt_enc):
         """
         :param img:   torch ([b, c, h, w])
         :param bboxes: torch([b, x1, y1, x2, y2, x3, y3, x4, y4])
@@ -131,12 +133,10 @@ class JointVisDetREC(nn.Module):
         :return:
         """
         vis_out = self.vis_model(img)   # (b, 1000)
-        # extract bboxes features
-        bbox_fts = extract_bboxes_feature(bboxes)  # [b, 3]
-        # extract extract tfidf feature
-        jot_out = torch.cat((vis_out, bbox_fts, rec, conf), 1)
+        t_out = self.txt_fc(txt_enc)
+        jot_out = torch.cat((vis_out, t_out), 1)
         out = self.head(jot_out)
-        out = self.sigmoid(out)
+        out = self.softmax(out, dim=1)
         return out
 
 
