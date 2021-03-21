@@ -239,7 +239,7 @@ def main():
     # load pretrained resnet50 with a modified last fully connected layer
     #model = modified_resnet50()
 
-    model = JointVisDetREC(tidim=1029, todim=50, vodim=10, odim=5)
+    model = JointVisDetREC(tidim=1029, todim=1029, vodim=10, odim=5)
     #model = vis_model(fc_out=5)
 
     # we need three different criterion for training

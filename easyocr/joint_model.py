@@ -112,7 +112,7 @@ class JointVisDet(nn.Module):
 
 
 class JointVisDetREC(nn.Module):
-    def __init__(self, tidim=1029, todim=50, vodim=10, odim=5):
+    def __init__(self, tidim=1029, todim=1029, vodim=10, odim=5):
         """
 
         :param idim:
@@ -120,7 +120,7 @@ class JointVisDetREC(nn.Module):
         """
         super(JointVisDetREC, self).__init__()
         self.vis_model = vis_model(fc_out=vodim)
-        self.txt_fc = torch.nn.Linear(tidim, todim)
+        #self.txt_fc = torch.nn.Linear(tidim, todim)
         self.head = torch.nn.Linear(todim + vodim, odim)
         self.softmax = F.softmax
 
@@ -133,8 +133,8 @@ class JointVisDetREC(nn.Module):
         :return:
         """
         vis_out = self.vis_model(img)   # (b, 1000)
-        t_out = self.txt_fc(txt_enc)
-        jot_out = torch.cat((vis_out, t_out), 1)
+        #t_out = self.txt_fc(txt_enc)
+        jot_out = torch.cat((vis_out, txt_enc), 1)
         out = self.head(jot_out)
         out = self.softmax(out, dim=1)
         return out
